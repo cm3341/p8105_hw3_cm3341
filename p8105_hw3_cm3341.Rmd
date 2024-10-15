@@ -8,16 +8,34 @@ output:
 editor_options: 
   chunk_output_type: console
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-Load tidyverse for its functions, tidy syntax and operators, tibbles, and because it includes ggplot2.
+Load tidyverse for its functions, tidy syntax and operators, tibbles, and because it includes ggplot2. Load readxl to read csv data files. 
 
 ```{r}
 library(tidyverse)
+library(readxl)
+library(knitr)
+library(ggplot2)
 ```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
 
 
 ## Problem 1
@@ -29,8 +47,70 @@ library(tidyverse)
 
 ## Problem 2
 
+Load in the two nhanes datasets including demographic information and accelerometer data
 ```{r}
+nhanes_demo = 
+  read_csv("data/nhanes_covar.csv", 
+    skip = 4, 
+    na = c("NA", "."))%>%
+  janitor::clean_names() %>% 
+  na.omit() %>% 
+  filter(age >= 21)%>%
+  mutate(
+    education = 
+      factor(education, 
+             levels = c(1, 2, 3), 
+             labels = c("Less than high school",
+                        "High school equivalent",
+                        "More than high school")),
+    sex = 
+      factor(sex,
+             levels = c(1, 2),
+             labels = c("Male", "Female")))
 
+nhanes_accel = 
+  read_csv("data/nhanes_accel.csv", 
+  na = c("NA", "."))%>%
+  janitor::clean_names()%>%
+  pivot_longer(
+    min1:min1440,
+    names_to = "minute",
+    values_to = "mims")
+    
+```
+
+Join the two datasets using `left_join`
+```{r}
+full_nhanes = 
+  nhanes_accel %>%
+  left_join(
+    nhanes_demo, by = c("seqn"))
+```
+
+Produce a reader-friendly table for the number of men and women in each education category.
+```{r}
+table_data = 
+  nhanes_demo %>%
+  group_by(education, sex) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+kable(table_data, col.names = c("Education", "Sex", "Count"))
+```
+
+Create a visualization of the age distributions for men and women in each education category. 
+
+```{r}
+ggplot(
+  nhanes_demo, 
+  aes(x = education, 
+      y = age, 
+      fill = sex)) +
+  geom_boxplot() +
+  labs(title = "Age Distribution by Education and Sex",
+       x = "Education Category",
+       y = "Age") +
+  theme_minimal()
 ```
 
 
