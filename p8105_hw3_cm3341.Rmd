@@ -84,13 +84,14 @@ Join the two datasets using `left_join`
 full_nhanes = 
   nhanes_accel %>%
   left_join(
-    nhanes_demo, by = c("seqn"))
+    nhanes_demo, by = c("seqn"))%>%
+  drop_na()
 ```
 
 Produce a reader-friendly table for the number of men and women in each education category.
 ```{r}
 table_data = 
-  nhanes_demo %>%
+  full_nhanes %>%
   group_by(education, sex) %>%
   summarise(count = n()) %>%
   ungroup()
@@ -102,7 +103,7 @@ Create a visualization of the age distributions for men and women in each educat
 
 ```{r}
 ggplot(
-  nhanes_demo, 
+  full_nhanes, 
   aes(x = education, 
       y = age, 
       fill = sex)) +
@@ -114,9 +115,64 @@ ggplot(
 ```
 
 
-## Problem 3
+```{r}
+total_activity_data = full_nhanes %>%
+  group_by(seqn, sex, age, education) %>%
+  summarise(total_activity = sum(mims, na.rm = TRUE)) %>%
+  ungroup()
+```
+
 
 ```{r}
+ggplot(total_activity_data, aes(x = age, y = total_activity, color = sex)) +
+  geom_point(alpha = 0.6) +   
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(~education) +
+  labs(title = "Total Activity vs Age by Sex and Education Level",
+       x = "Age",
+       y = "Total Activity (Sum of MIMS)",
+       color = "Sex") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+According to the graphs, 
+
+
+Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
+
+```{r}
+
+```
+
+
+## Problem 3
+
+Import the four citibike datasets
+```{r}
+citi_012020 = 
+  read_csv("data/Jan 2020 Citi.csv", 
+    na = c("NA", "."))%>%
+  janitor::clean_names() %>% 
+  na.omit()
+
+citi_012024 = 
+  read_csv("data/Jan 2024 Citi.csv", 
+    na = c("NA", "."))%>%
+  janitor::clean_names() %>% 
+  na.omit()
+
+citi_072020 = 
+  read_csv("data/July 2020 Citi.csv", 
+    na = c("NA", "."))%>%
+  janitor::clean_names() %>% 
+  na.omit()
+
+citi_072024 = 
+  read_csv("data/July 2024 Citi.csv", 
+    na = c("NA", "."))%>%
+  janitor::clean_names() %>% 
+  na.omit()
 
 ```
 
