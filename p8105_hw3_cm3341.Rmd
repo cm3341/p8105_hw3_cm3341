@@ -171,14 +171,6 @@ full_nhanes %>%
 
 ```
 
-Pull some key values for my summary
-
-```{r, eval=FALSE}
-age_value = nhanes_demo %>% #use this to pull median ages and counts from the tables I created
-  filter(seqn == 2) %>% 
-  pull(age)
-```
-
 Interpretation: The boxplots for age distribution of men and women by education category illustrates that out of the sample of nhanes participants for whom we have complete accelerometer and demographic data, the median age for males was highest in the *Less than high school* group, followed by the *High school equivalent* group, with the *More than high school* group having the lowest median age for males. For females, the highest median age of participation was in the *High school equivalent* group, followed by the *Less than high school* and *More than high* groups. 
 
 The data table showing counts of males and females by education category notes that most participants in this sample fell into the *More than high school* education category. 
@@ -214,8 +206,8 @@ Accelerometer data allows the inspection activity over the course of the day. Ma
 
 
 
-```{r eval=FALSE}
-full_nhanes <- full_nhanes %>%
+```{r}
+full_nhanes = full_nhanes %>%
   mutate(minute = as.numeric(gsub("min", "", minute)))
 
 ggplot(full_nhanes, aes(x = minute, y = mims, color = sex)) +
@@ -328,5 +320,26 @@ ggplot(full_citi_data,
        color = "Year") +
   theme_minimal() +
   theme(legend.position = "bottom")
+```
+
+Next, I will create three separate plots to investigate the effects of day of the week, month, and year on median ride duration. After I create each plot, I will piece them all together using the `patchwork` package. 
+
+
+```{r}
+
+full_citi_data %>%
+  mutate(weekdays = forcats::fct_relevel(weekdays, c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))) %>% 
+  group_by(weekdays) %>%
+  summarise(median_duration = median(duration)) %>%
+  ggplot(aes(x = weekdays, y = median_duration)) +
+  geom_col(fill = "skyblue") +
+  labs(title = "Median Ride Duration by Day of the Week",
+       x = "Day of the Week",
+       y = "Median Ride Duration (minutes)") +
+  theme_minimal()
+
+
+
+
 ```
 
