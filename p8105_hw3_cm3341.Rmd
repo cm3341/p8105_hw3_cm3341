@@ -12,7 +12,6 @@ Load tidyverse for its functions, tidy syntax and operators, tibbles, and becaus
 
 ```{r}
 library(tidyverse)
-library(readxl)
 library(knitr)
 library(ggplot2)
 ```
@@ -54,7 +53,6 @@ nhanes_demo =
     skip = 4, 
     na = c("NA", "."))%>%
   janitor::clean_names() %>% 
-  na.omit() %>% 
   filter(age >= 21)%>%
   mutate(
     education = 
@@ -79,7 +77,7 @@ nhanes_accel =
     
 ```
 
-Join the two datasets using `left_join`
+Join the two datasets using `left_join` by the *seqn* variable. 
 ```{r}
 full_nhanes = 
   nhanes_accel %>%
@@ -90,13 +88,13 @@ full_nhanes =
 
 Produce a reader-friendly table for the number of men and women in each education category.
 ```{r}
-table_data = 
+edu_by_sex_table = 
   full_nhanes %>%
   group_by(education, sex) %>%
   summarise(count = n()) %>%
   ungroup()
 
-kable(table_data, col.names = c("Education", "Sex", "Count"))
+kable(edu_by_sex_table, col.names = c("Education", "Sex", "Count"))
 ```
 
 Create a visualization of the age distributions for men and women in each education category. 
@@ -112,8 +110,26 @@ ggplot(
        x = "Education Category",
        y = "Age") +
   theme_minimal()
+
+full_nhanes %>% 
+  group_by(education, sex) %>% 
+  summarise(median(age))
+
 ```
 
+Pull some key values for my summary
+
+```{r, eval=FALSE}
+age_value <- nhanes_demo %>% #use this to pull median ages and counts from the tables I created
+  filter(seqn == 2) %>% 
+  pull(age)
+```
+
+The boxplots for age distribution of men and women by education category illustrates that out of the sample of nhanes participants for whom we have complete accelerometer and demographic data, the median age for males was highest in the *Less than high school* group, followed by the *High school equivalent* group, with the *More than high school* group having the lowest median age for males. For females, the highest median age of participation was in the *High school equivalent* group, followed by the *Less than high school* and *More than high* groups. 
+
+The data table showing counts of males and females by education category notes that most participants in this sample fell into the *More than high school* education category. 
+
+Using the tidied dataset for `full_nhanes`, I will create a new dataset to display summed MIMS times by adding them up for each participant to create a new aggregated 24 hr variable for their activity level. 
 
 ```{r}
 total_activity_data = full_nhanes %>%
@@ -141,38 +157,78 @@ According to the graphs,
 
 Accelerometer data allows the inspection activity over the course of the day. Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex. Describe in words any patterns or conclusions you can make based on this graph; including smooth trends may help identify differences.
 
+
+
 ```{r}
+full_nhanes <- full_nhanes %>%
+  mutate(minute = as.numeric(gsub("min", "", minute)))
+
+ggplot(full_nhanes, aes(x = minute, y = mims, color = sex)) +
+  geom_point(aes(group = seqn), alpha = 0.2) +  # Plot minute-by-minute activity for each participant
+  geom_smooth(se = FALSE) +  # Add smooth trend lines to highlight patterns
+  facet_wrap(~education, ncol = 1) +  # Separate panels for each education level
+  scale_x_continuous(breaks = seq(0, 1440, by = 240),  # X-axis breaks every 4 hours
+                     labels = c("00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00")) +  # Time labels
+  labs(title = "24-Hour Activity Time Course by Education Level and Sex",
+       x = "Time of Day",
+       y = "Activity (MIMS)",
+       color = "Sex") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
 ```
 
 
 ## Problem 3
 
-Import the four citibike datasets
+Import the four citibike datasets. Run the usual data cleaning functions to standardize missing values, clean names into snake case, omit rows with NA values, and added two new columns to each dataset for month and year. I will finish tidying the data after I bind the datasets into one master dataset. 
 ```{r}
+
 citi_012020 = 
   read_csv("data/Jan 2020 Citi.csv", 
     na = c("NA", "."))%>%
   janitor::clean_names() %>% 
-  na.omit()
+  na.omit() %>% 
+  mutate(month = "January",
+         year = "2020")
 
 citi_012024 = 
   read_csv("data/Jan 2024 Citi.csv", 
     na = c("NA", "."))%>%
   janitor::clean_names() %>% 
-  na.omit()
+  drop_na()%>% 
+  mutate(month = "January",
+         year = "2024")
 
 citi_072020 = 
   read_csv("data/July 2020 Citi.csv", 
     na = c("NA", "."))%>%
   janitor::clean_names() %>% 
-  na.omit()
+  drop_na()%>% 
+  mutate(month = "July",
+         year = "2024")
 
 citi_072024 = 
   read_csv("data/July 2024 Citi.csv", 
     na = c("NA", "."))%>%
   janitor::clean_names() %>% 
-  na.omit()
+  drop_na()%>% 
+  mutate(month = "July",
+         year = "2024")
 
+```
+
+Bind all four datasets together
+```{r}
+full_citi_data = 
+  bind_rows(citi_012020, citi_012024, citi_072020, citi_072024)
+```
+
+Finish up the tidying process by rearranging rows into an order that makes more sense for the types of questions I am going to be answering. It looks like days and dates are going to be important, so I put those first. 
+
+```{r}
+full_citi_data = 
+  full_citi_data %>% 
+  select(month, year, weekdays, member_casual, ride_id, everything())
 ```
 
