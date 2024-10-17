@@ -14,6 +14,10 @@ Load tidyverse for its functions, tidy syntax and operators, tibbles, and becaus
 library(tidyverse)
 library(knitr)
 library(ggplot2)
+library(ggridges)
+library(patchwork)
+
+library(p8105.datasets)
 ```
 
 
@@ -35,18 +39,69 @@ scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
 
-
-
 ## Problem 1
+#### Read in the data
 
 ```{r}
+data("ny_noaa")
+```
 
+#### Answer questions about the data
+
+This dataset contains `r nrow(ny_noaa)` rows and `r ncol(ny_noaa)` columns. Variables include weather station id, date of observation,  (tenths of mm), snowfall (mm), snow depth (mm), and min and max temperature (tenths of degrees C).
+
+Below we clean the data, creating separate variables for year, month, and day and converting `tmax` and `tmin` to numeric. We find that 0 is the most commonly observed value for snowfall. This is because most days of the year, it does not snow at all in NY. The second most commonly observed value is `NA`, indicating missingness. Other common values are 13, 25, and 51, suggesting that snowfall is originally recorded in fractions of an inch and converted to mm.
+
+```{r}
+ny_noaa %>% 
+  count(snow) %>%
+  arrange(desc(n))
+
+ny_noaa = 
+  ny_noaa %>% 
+  separate(date, into = c("year", "month", "day"), convert = TRUE) %>% 
+  mutate(
+    tmax = as.numeric(tmax),
+    tmin = as.numeric(tmin))
+```
+
+Below is a two-panel plot showing the average max temperature in January and in July in each station across years. As expected, the mean temperature in January is much lower than the mean temperature in July for all stations and across all years. All stations appear to follow similar trends of temperature peaks and valleys within a month across the years, i.e. when one station has a high monthly mean temperature for a given year, most other stations also have a high monthly mean temperature for that year. We do see one uncharacteristically cold station in July of 1987 or 1988, as well as a few other less drastic outliers.
+
+```{r}
+ny_noaa %>% 
+  group_by(id, year, month) %>% 
+  filter(month %in% c(1, 7)) %>% 
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE, color = id)) %>% 
+  ggplot(aes(x = year, y = mean_tmax, group = id)) + geom_point() + geom_path() +
+  facet_grid(~month) +
+  labs(title = "Mean monthly temperature for each station across years for January and July")
+```
+
+Below we show a two-panel plot including (i) a hex plot of `tmax` vs `tmin` for the full dataset; and (ii) a ridge plot showing the distribution of snowfall values (in mm) greater than 0 and less than 100 separately by year. 
+
+From the hex plot we see that while there is some variability, the majority of the data cluster tightly in the center of the distribution. In relatively rare cases, it seems that `tmax` is less than `tmin`, which raises questions about data recording and quality.
+
+From the ridge plot, we see a multimodal density of snowfall within a given year. Most stations see between 0 and  35 mm of snow in a year. Then there is a another group of stations that see about 45 mm of snow, and another group that sees nearly 80 mm. It is likely this multimodality stems from the conversion of measurements in one system (fractions of an inch) to another (using the metric system), which was also noted in the table of common values. 
+
+```{r}
+hex = 
+  ny_noaa %>% 
+  ggplot(aes(x = tmin, y = tmax)) + 
+  geom_hex()
+
+ridge = 
+  ny_noaa %>% 
+  filter(snow < 100, snow > 0) %>%
+  ggplot(aes(x = snow, y = as.factor(year))) + 
+  geom_density_ridges()
+
+hex + ridge
 ```
 
 
 ## Problem 2
 
-Load in the two nhanes datasets including demographic information and accelerometer data
+Load in the two nhanes datasets including demographic information and accelerometer data. I run the usual data cleaning functions to standardize how missing values are labeled, and clean names to snake case. For the demographics dataset, I skipped the top 4 rows because they contain extra information, and in the same code chunk I filtered to only include ages >=21. I also relabeled the education and sex variables and coded them as factors. For the accelerometer dataset, I `pivot_longer` the MIMS data and created two separate variables for the distinct minute of each recording per participant and the MIMS value collected at that minute. 
 ```{r}
 nhanes_demo = 
   read_csv("data/nhanes_covar.csv", 
@@ -91,8 +146,7 @@ Produce a reader-friendly table for the number of men and women in each educatio
 edu_by_sex_table = 
   full_nhanes %>%
   group_by(education, sex) %>%
-  summarise(count = n()) %>%
-  ungroup()
+  summarise(count = n())
 
 kable(edu_by_sex_table, col.names = c("Education", "Sex", "Count"))
 ```
@@ -120,28 +174,29 @@ full_nhanes %>%
 Pull some key values for my summary
 
 ```{r, eval=FALSE}
-age_value <- nhanes_demo %>% #use this to pull median ages and counts from the tables I created
+age_value = nhanes_demo %>% #use this to pull median ages and counts from the tables I created
   filter(seqn == 2) %>% 
   pull(age)
 ```
 
-The boxplots for age distribution of men and women by education category illustrates that out of the sample of nhanes participants for whom we have complete accelerometer and demographic data, the median age for males was highest in the *Less than high school* group, followed by the *High school equivalent* group, with the *More than high school* group having the lowest median age for males. For females, the highest median age of participation was in the *High school equivalent* group, followed by the *Less than high school* and *More than high* groups. 
+Interpretation: The boxplots for age distribution of men and women by education category illustrates that out of the sample of nhanes participants for whom we have complete accelerometer and demographic data, the median age for males was highest in the *Less than high school* group, followed by the *High school equivalent* group, with the *More than high school* group having the lowest median age for males. For females, the highest median age of participation was in the *High school equivalent* group, followed by the *Less than high school* and *More than high* groups. 
 
 The data table showing counts of males and females by education category notes that most participants in this sample fell into the *More than high school* education category. 
+
 
 Using the tidied dataset for `full_nhanes`, I will create a new dataset to display summed MIMS times by adding them up for each participant to create a new aggregated 24 hr variable for their activity level. 
 
 ```{r}
 total_activity_data = full_nhanes %>%
   group_by(seqn, sex, age, education) %>%
-  summarise(total_activity = sum(mims, na.rm = TRUE)) %>%
-  ungroup()
+  summarise(total_activity = sum(mims))
+
 ```
 
 
 ```{r}
 ggplot(total_activity_data, aes(x = age, y = total_activity, color = sex)) +
-  geom_point(alpha = 0.6) +   
+  geom_point() +   
   geom_smooth(method = "loess", se = FALSE) +
   facet_wrap(~education) +
   labs(title = "Total Activity vs Age by Sex and Education Level",
@@ -159,16 +214,16 @@ Accelerometer data allows the inspection activity over the course of the day. Ma
 
 
 
-```{r}
+```{r eval=FALSE}
 full_nhanes <- full_nhanes %>%
   mutate(minute = as.numeric(gsub("min", "", minute)))
 
 ggplot(full_nhanes, aes(x = minute, y = mims, color = sex)) +
-  geom_point(aes(group = seqn), alpha = 0.2) +  # Plot minute-by-minute activity for each participant
-  geom_smooth(se = FALSE) +  # Add smooth trend lines to highlight patterns
-  facet_wrap(~education, ncol = 1) +  # Separate panels for each education level
-  scale_x_continuous(breaks = seq(0, 1440, by = 240),  # X-axis breaks every 4 hours
-                     labels = c("00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00")) +  # Time labels
+  geom_point(aes(group = seqn), alpha = 0.2) +
+  geom_smooth(se = FALSE) +
+  facet_wrap(~education, ncol = 1) +
+  scale_x_continuous(breaks = seq(0, 1440, by = 240),
+                     labels = c("00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00")) +
   labs(title = "24-Hour Activity Time Course by Education Level and Sex",
        x = "Time of Day",
        y = "Activity (MIMS)",
@@ -181,7 +236,7 @@ ggplot(full_nhanes, aes(x = minute, y = mims, color = sex)) +
 
 ## Problem 3
 
-Import the four citibike datasets. Run the usual data cleaning functions to standardize missing values, clean names into snake case, omit rows with NA values, and added two new columns to each dataset for month and year. I will finish tidying the data after I bind the datasets into one master dataset. 
+Import the four citibike datasets. Run the usual data cleaning functions to standardize missing values, clean names into snake case, remove rows with NA values, and added two new columns to each dataset for month and year. I will finish tidying the data after I bind the datasets into one master dataset. 
 ```{r}
 
 citi_012020 = 
@@ -206,7 +261,7 @@ citi_072020 =
   janitor::clean_names() %>% 
   drop_na()%>% 
   mutate(month = "July",
-         year = "2024")
+         year = "2020")
 
 citi_072024 = 
   read_csv("data/July 2024 Citi.csv", 
@@ -224,11 +279,54 @@ full_citi_data =
   bind_rows(citi_012020, citi_012024, citi_072020, citi_072024)
 ```
 
-Finish up the tidying process by rearranging rows into an order that makes more sense for the types of questions I am going to be answering. It looks like days and dates are going to be important, so I put those first. 
+Finished up the tidying process by rearranging rows into an order that makes more sense for the types of questions I am going to be answering. It looks like days and dates are going to be important, so I put those first. 
 
 ```{r}
 full_citi_data = 
   full_citi_data %>% 
   select(month, year, weekdays, member_casual, ride_id, everything())
+```
+
+
+I have prepared a reader-friendly table showing the total number of rides in each combination of year and month separating casual riders and Citi Bike members.
+
+```{r}
+month_year_rider = 
+  full_citi_data %>%
+  group_by(month, year, member_casual) %>%
+  summarise(total_rides = n())
+
+kable(month_year_rider, col.names = c("Month", "Year", "Rider Type", "Total Rides"))
+```
+
+Interpretation: Overall, regardless of the year, there are more rides in July than in January, which makes sense based on the seasons. Additionally, there seem to be more member riders in general, compared to casual riders. Finally, there seems to be an increasing trend of casual rides from January 2020 (980 rides) to July 2024 (36,200 rides). 
+
+To create a table showing the 5 most popular starting stations for July 2024, I must `filter` my citi bike dataset for observations in July 2024 only, `group_by` the start station name, and then summarize to create a count of total rides at each station. I then arrange the new dataframe in descending order and use the `slice` function to isolate the top 5 stations. I then created a kable to present the output. 
+
+```{r}
+top_july_2024_df = 
+  full_citi_data %>%
+  filter(month == "July" & year == "2024") %>%
+  group_by(start_station_name) %>%
+  summarise(total_rides = n()) %>%
+  arrange(desc(total_rides)) %>%
+  slice_head(n = 5)
+
+kable(top_july_2024_df, col.names = c("Start Station", "Total Rides"))
+```
+
+
+```{r}
+
+ggplot(full_citi_data, 
+    aes(x = weekdays, y = duration, color = as.factor(year))) +
+  stat_summary(fun = median, geom = "line", aes(group = interaction(month, year)))+
+  facet_wrap(~ month) +
+  labs(title = "Effects of Day of Week, Month, and Year on Median Ride Duration",
+       x = "Day of the Week",
+       y = "Median Ride Duration (minutes)",
+       color = "Year") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 ```
 
